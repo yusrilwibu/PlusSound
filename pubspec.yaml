@@ -1,7 +1,7 @@
 name: plus_sound
 description: "PlusSound - Premium Music Streaming"
 publish_to: 'none'
-version: 1.0.1+2
+version: 1.0.3+4
 
 environment:
   sdk: ^3.12.1

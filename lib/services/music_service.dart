@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import '../models/song_model.dart';
 import 'package:http/http.dart' as http;
@@ -343,10 +344,4 @@ class MusicService {
       return Duration.zero;
     }
   }
-}
-
-// helper for debugPrint
-void debugPrint(String msg) {
-  // ignore: avoid_print
-  print(msg);
 }

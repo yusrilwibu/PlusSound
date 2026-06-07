@@ -721,7 +721,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Text("PlusSound", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ],
         ),
-        content: const Column(
+        content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -732,13 +732,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 return Text("Versi $version", style: const TextStyle(color: Colors.white70));
               }
             ),
-            SizedBox(height: 8),
-            Text(
+            const SizedBox(height: 8),
+            const Text(
               "Aplikasi streaming musik berbasis Flutter dengan integrasi YouTube Music dan Vercel API.",
               style: TextStyle(color: AppTheme.secondaryTextColor, fontSize: 13, height: 1.5),
             ),
-            SizedBox(height: 12),
-            Text("Developer: @yusril", style: TextStyle(color: AppTheme.primaryColor, fontSize: 13)),
+            const SizedBox(height: 12),
+            const Text("Developer: @yusril", style: TextStyle(color: AppTheme.primaryColor, fontSize: 13)),
           ],
         ),
         actions: [

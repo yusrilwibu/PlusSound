@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../theme.dart';
 import '../models/song_model.dart';
 import '../providers/audio_provider.dart';
-import '../services/music_service.dart';
+import '../services/music_service.dart' as musicSvc;
 import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -17,7 +17,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final MusicService _musicService = MusicService();
+  final musicSvc.MusicService _musicService = musicSvc.MusicService();
   bool _isLoading = false;
   Map<String, List<SongModel>> _homeData = {};
   String? _errorMessage;

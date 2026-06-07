@@ -38,11 +38,22 @@ class _HomeScreenState extends State<HomeScreen> {
         final Map<String, List<SongModel>> parsedData = {};
         decoded.forEach((key, value) {
           final List<dynamic> list = value;
-          parsedData[key] = list.map((item) => SongModel.fromMap(item)).toList();
+          final songs = list.map((item) => SongModel.fromMap(item)).toList();
+          songs.shuffle(); // Acak lagu
+          parsedData[key] = songs;
         });
+
+        // Acak urutan kategori
+        final keys = parsedData.keys.toList();
+        keys.shuffle();
+        final Map<String, List<SongModel>> shuffledData = {};
+        for (var k in keys) {
+          shuffledData[k] = parsedData[k]!;
+        }
+
         if (mounted) {
           setState(() {
-            _homeData = parsedData;
+            _homeData = shuffledData;
           });
         }
       }
@@ -77,6 +88,10 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() {
           if (data.isNotEmpty) {
+            // Acak lagu dari hasil fetch agar terasa segar setiap dimuat
+            data.forEach((key, songs) {
+              songs.shuffle();
+            });
             _homeData = data;
             _saveToCache(data); // Simpan ke cache
           }

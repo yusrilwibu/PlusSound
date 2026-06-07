@@ -64,6 +64,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final latestVersion = response.data['tag_name'].toString().replaceAll('v', '');
         
         if (_isNewerVersion(currentVersion, latestVersion)) {
+          final releaseNotes = response.data['body']?.toString() ?? 'Tidak ada catatan rilis.';
           // Cari aset APK
           final assets = response.data['assets'] as List;
           final apkAsset = assets.firstWhere(
@@ -73,12 +74,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           if (apkAsset != null) {
             final downloadUrl = apkAsset['browser_download_url'];
-            await _downloadAndInstallApk(downloadUrl, latestVersion);
+            
+            if (!mounted) return;
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: AppTheme.surfaceColor,
+                title: Text("Update Tersedia (v$latestVersion)", style: const TextStyle(color: Colors.white)),
+                content: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text("Catatan Rilis:", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      Text(releaseNotes, style: const TextStyle(color: Colors.white70)),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text("Nanti", style: TextStyle(color: Colors.white54)),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _downloadAndInstallApk(downloadUrl, latestVersion);
+                    },
+                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryColor),
+                    child: const Text("Update Sekarang", style: TextStyle(color: Colors.white)),
+                  ),
+                ],
+              ),
+            );
           } else {
             _showSnackBar("Tidak menemukan file APK pada rilis terbaru.");
           }
         } else {
-          _showSnackBar("Aplikasi Anda sudah versi terbaru ($currentVersion).");
+          if (!mounted) return;
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: AppTheme.surfaceColor,
+              title: const Text("Sudah Versi Terbaru", style: TextStyle(color: Colors.white)),
+              content: Text("Aplikasi Anda (v$currentVersion) sudah merupakan versi paling baru.", style: const TextStyle(color: Colors.white70)),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text("Tutup", style: TextStyle(color: AppTheme.primaryColor)),
+                ),
+              ],
+            ),
+          );
         }
       }
     } catch (e) {

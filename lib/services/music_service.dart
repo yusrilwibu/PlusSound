@@ -120,24 +120,46 @@ class MusicService {
       debugPrint('fetchHomeData API error: $e');
     }
 
-    // Jika gagal, fallback ke YoutubeExplode (satu request saja agar cepat)
+    // Jika gagal, fallback ke YoutubeExplode secara paralel dan acak
     if (homeData.isEmpty) {
+      final List<Map<String, String>> categories = [
+        {'title': 'Hits Indonesia', 'query': 'lagu pop indonesia terbaru hits'},
+        {'title': 'Viral TikTok', 'query': 'lagu viral tiktok terbaru'},
+        {'title': 'Akustik Santai', 'query': 'lagu akustik cafe santai'},
+        {'title': 'Top Global', 'query': 'top hits global billboard'},
+        {'title': 'Lagu Galau', 'query': 'lagu galau indonesia sedih'},
+        {'title': 'K-Pop Hits', 'query': 'kpop hits terbaru'},
+        {'title': 'Dangdut Koplo', 'query': 'dangdut koplo terbaru'},
+        {'title': 'Lagu Lawas Nostalgia', 'query': 'lagu lawas kenangan indonesia'},
+        {'title': 'EDM & Party', 'query': 'edm party mix terbaru'},
+        {'title': 'Indie Lokal', 'query': 'lagu indie indonesia terbaik'},
+      ];
+
+      categories.shuffle();
+      final selectedCategories = categories.take(4).toList();
+
       try {
-        final results = await _yt.search.search('lagu hits indonesia 2024');
-        final songs = results
-            .take(20)
-            .map((v) => SongModel(
-                  id: v.id.value,
-                  title: v.title,
-                  artist: v.author,
-                  albumArtUrl: v.thumbnails.highResUrl,
-                  duration: v.duration ?? Duration.zero,
-                  streamUrl: '',
-                ))
-            .toList();
-        if (songs.isNotEmpty) {
-          homeData['Lagu Terpopuler'] = songs;
-        }
+        await Future.wait(selectedCategories.map((category) async {
+          try {
+            final results = await _yt.search.search(category['query']!);
+            final songs = results
+                .take(15)
+                .map((v) => SongModel(
+                      id: v.id.value,
+                      title: v.title,
+                      artist: v.author,
+                      albumArtUrl: v.thumbnails.highResUrl,
+                      duration: v.duration ?? Duration.zero,
+                      streamUrl: '',
+                    ))
+                .toList();
+            if (songs.isNotEmpty) {
+              homeData[category['title']!] = songs;
+            }
+          } catch (e) {
+            debugPrint('fetchHomeData fallback category error: $e');
+          }
+        }));
       } catch (e) {
         debugPrint('fetchHomeData fallback error: $e');
       }

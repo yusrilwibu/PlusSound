@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../api_config.dart';
 import '../theme.dart';
 import '../providers/settings_provider.dart';
@@ -47,110 +48,142 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   bool _isCheckingUpdate = false;
-  double _updateProgress = 0.0;
 
   Future<void> _checkForUpdate() async {
-    setState(() {
-      _isCheckingUpdate = true;
-      _updateProgress = 0.0;
-    });
+    setState(() => _isCheckingUpdate = true);
 
     try {
-      // Dapatkan versi aplikasi saat ini
       final packageInfo = await PackageInfo.fromPlatform();
-      final currentVersion = packageInfo.version; // e.g. "1.0.1"
+      final currentVersion = packageInfo.version; // e.g. "1.0.4"
 
-      // Cek versi terbaru di GitHub Releases
       final dio = Dio();
-      final response = await dio.get('https://api.github.com/repos/yusrilwibu/PlusSound/releases/latest');
-      if (response.statusCode == 200) {
-        final latestVersion = response.data['tag_name'].toString().replaceAll('v', '');
-        
-        if (_isNewerVersion(currentVersion, latestVersion)) {
-          final releaseNotes = response.data['body']?.toString() ?? 'Tidak ada catatan rilis.';
-          // Cari aset APK
-          final assets = response.data['assets'] as List;
-          final apkAsset = assets.firstWhere(
-            (asset) => asset['name'].toString().endsWith('.apk'),
-            orElse: () => null,
-          );
+      final response = await dio.get(
+        'https://api.github.com/repos/yusrilwibu/PlusSound/releases/latest',
+        options: Options(headers: {'Accept': 'application/vnd.github+json'}),
+      ).timeout(const Duration(seconds: 10));
 
-          if (apkAsset != null) {
-            final downloadUrl = apkAsset['browser_download_url'];
-            
-            if (!mounted) return;
-            showDialog(
-              context: context,
-              barrierDismissible: false,
-              builder: (ctx) => AlertDialog(
-                backgroundColor: AppTheme.surfaceColor,
-                title: Text("Update Tersedia (v$latestVersion)", style: const TextStyle(color: Colors.white)),
-                content: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text("Catatan Rilis:", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-                      Text(releaseNotes, style: const TextStyle(color: Colors.white70)),
-                    ],
-                  ),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text("Nanti", style: TextStyle(color: Colors.white54)),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      _downloadAndInstallApk(downloadUrl, latestVersion);
-                    },
-                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryColor),
-                    child: const Text("Update Sekarang", style: TextStyle(color: Colors.white)),
-                  ),
+      if (response.statusCode == 200) {
+        final tagName = response.data['tag_name']?.toString() ?? '';
+        final latestVersion = tagName.replaceAll('v', '');
+        final releaseNotes = response.data['body']?.toString() ?? 'Tidak ada catatan rilis.';
+
+        // Cari aset APK arm64 (paling umum)
+        final assets = response.data['assets'] as List? ?? [];
+        final apkAsset = assets.firstWhere(
+          (a) => a['name'].toString().contains('arm64'),
+          orElse: () => assets.firstWhere(
+            (a) => a['name'].toString().endsWith('.apk'),
+            orElse: () => null,
+          ),
+        );
+
+        if (!mounted) return;
+
+        if (_isNewerVersion(currentVersion, latestVersion) && apkAsset != null) {
+          // Tampilkan dialog update tersedia
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: AppTheme.surfaceColor,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  Icon(Icons.system_update_rounded, color: AppTheme.primaryColor, size: 24),
+                  SizedBox(width: 10),
+                  Text("Update v$latestVersion Tersedia!", style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 17)),
                 ],
               ),
-            );
-          } else {
-            _showSnackBar("Tidak menemukan file APK pada rilis terbaru.");
-          }
+              content: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text("Versi saat ini: v$currentVersion", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 12)),
+                    SizedBox(height: 12),
+                    Text("📝 Catatan Rilis:", style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.bold, fontSize: 13)),
+                    SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).textTheme.bodyLarge?.color.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(releaseNotes, style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 12)),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text("Nanti", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
+                ),
+                ElevatedButton.icon(
+                  icon: Icon(Icons.download_rounded, size: 18),
+                  label: Text("Update Sekarang"),
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _downloadAndInstallApk(
+                      apkAsset['browser_download_url'],
+                      latestVersion,
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  ),
+                ),
+              ],
+            ),
+          );
+        } else if (apkAsset == null && _isNewerVersion(currentVersion, latestVersion)) {
+          _showSnackBar("Update tersedia (v$latestVersion) tapi file APK tidak ditemukan di release.");
         } else {
-          if (!mounted) return;
           showDialog(
             context: context,
             builder: (ctx) => AlertDialog(
               backgroundColor: AppTheme.surfaceColor,
-              title: const Text("Sudah Versi Terbaru", style: TextStyle(color: Colors.white)),
-              content: Text("Aplikasi Anda (v$currentVersion) sudah merupakan versi paling baru.", style: const TextStyle(color: Colors.white70)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 24),
+                  SizedBox(width: 10),
+                  Text("Sudah Versi Terbaru", style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 17)),
+                ],
+              ),
+              content: Text(
+                "Aplikasi Anda (v$currentVersion) sudah merupakan versi paling baru. Tidak ada pembaruan.",
+                style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
+              ),
               actions: [
-                TextButton(
+                ElevatedButton(
                   onPressed: () => Navigator.pop(ctx),
-                  child: const Text("Tutup", style: TextStyle(color: AppTheme.primaryColor)),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryColor, foregroundColor: Colors.white),
+                  child: Text("Oke"),
                 ),
               ],
             ),
           );
         }
       }
+    } on DioException catch (e) {
+      _showSnackBar("Gagal cek pembaruan: ${e.message ?? 'Cek koneksi internet Anda'}");
     } catch (e) {
       _showSnackBar("Gagal memeriksa pembaruan: $e");
     } finally {
-      if (mounted) {
-        setState(() {
-          _isCheckingUpdate = false;
-        });
-      }
+      if (mounted) setState(() => _isCheckingUpdate = false);
     }
   }
 
   bool _isNewerVersion(String current, String latest) {
     try {
-      final curParts = current.split('.').map(int.parse).toList();
-      final latestParts = latest.split('.').map(int.parse).toList();
+      final cur = current.split('.').map(int.parse).toList();
+      final lat = latest.split('.').map(int.parse).toList();
       for (int i = 0; i < 3; i++) {
-        final c = i < curParts.length ? curParts[i] : 0;
-        final l = i < latestParts.length ? latestParts[i] : 0;
+        final c = i < cur.length ? cur[i] : 0;
+        final l = i < lat.length ? lat[i] : 0;
         if (l > c) return true;
         if (l < c) return false;
       }
@@ -159,30 +192,94 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _downloadAndInstallApk(String url, String version) async {
-    try {
-      final dio = Dio();
-      final tempDir = await getTemporaryDirectory();
-      final savePath = '${tempDir.path}/PlusSound_v$version.apk';
+    // Dialog progress download
+    double progress = 0;
+    bool downloadDone = false;
+    String statusText = 'Mempersiapkan unduhan...';
 
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            backgroundColor: AppTheme.surfaceColor,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                Icon(Icons.download_rounded, color: AppTheme.primaryColor),
+                SizedBox(width: 10),
+                Text("Mengunduh v$version", style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 16)),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(height: 8),
+                Text(statusText, style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 13)),
+                SizedBox(height: 16),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: downloadDone ? 1.0 : (progress > 0 ? progress : null),
+                    minHeight: 10,
+                    backgroundColor: Colors.white12,
+                    valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                  ),
+                ),
+                SizedBox(height: 10),
+                Text(
+                  downloadDone ? '✅ Selesai! Memulai instalasi...' : '${(progress * 100).toStringAsFixed(0)}%',
+                  style: TextStyle(
+                    color: downloadDone ? Colors.greenAccent : Colors.white54,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final savePath = '${tempDir.path}/PlusSound_update_v$version.apk';
+
+      final dio = Dio();
       await dio.download(
         url,
         savePath,
         onReceiveProgress: (received, total) {
-          if (total != -1) {
-            setState(() {
-              _updateProgress = received / total;
-            });
+          if (total > 0) {
+            progress = received / total;
+            statusText = 'Mengunduh... ${(received / 1024 / 1024).toStringAsFixed(1)} MB / ${(total / 1024 / 1024).toStringAsFixed(1)} MB';
           }
         },
       );
 
-      _showSnackBar("Unduhan selesai. Menginstal...");
-      final result = await OpenFile.open(savePath);
+      downloadDone = true;
+      statusText = 'Unduhan selesai! Memulai instalasi...';
+      await Future.delayed(const Duration(milliseconds: 800));
+
+      // Install APK
+      // Request install packages permission first for Android 8+
+      if (Platform.isAndroid) {
+        var status = await Permission.requestInstallPackages.request();
+        if (!status.isGranted) {
+           _showSnackBar("Izin instalasi ditolak. Silakan izinkan di pengaturan perangkat.");
+           return;
+        }
+      }
+
+      final result = await OpenFile.open(savePath, type: "application/vnd.android.package-archive");
       if (result.type != ResultType.done) {
-        _showSnackBar("Gagal menginstal: ${result.message}");
+        _showSnackBar("Gagal membuka installer: ${result.message}");
       }
     } catch (e) {
-      _showSnackBar("Gagal mengunduh pembaruan: $e");
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      _showSnackBar("Gagal mengunduh: $e");
     }
   }
 
@@ -192,7 +289,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       SnackBar(
         content: Text(message),
         backgroundColor: AppTheme.surfaceColor,
-        duration: const Duration(seconds: 3),
+        duration: const Duration(seconds: 4),
       ),
     );
   }
@@ -228,7 +325,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       // Avatar (pakai foto dari Firebase jika login)
                       GestureDetector(
                         onTap: () {
@@ -273,21 +370,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ? Center(
                                   child: Text(
                                     auth.isLoggedIn ? (auth.displayName.isNotEmpty ? auth.displayName[0].toUpperCase() : 'U') : 'G',
-                                    style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
+                                    style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color),
                                   ),
                                 )
                               : null,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        auth.isLoggedIn ? auth.displayName : 'Tamu',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                      SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            auth.isLoggedIn ? auth.displayName : 'Tamu',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color),
+                          ),
+                          if (auth.isLoggedIn)
+                            IconButton(
+                              icon: const Icon(Icons.edit, size: 16, color: Colors.white54),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () => _showEditNameDialog(auth),
+                            ),
+                        ],
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       if (auth.isLoggedIn && auth.email != null)
-                        Text(auth.email!, style: const TextStyle(fontSize: 11, color: Colors.white54)),
-                      const SizedBox(height: 4),
+                        Text(auth.email!, style: const TextStyle(fontSize: 11, color: Theme.of(context).textTheme.bodyMedium?.color)),
+                      SizedBox(height: 4),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                         decoration: BoxDecoration(
@@ -347,14 +456,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         context: context,
                         builder: (ctx) => AlertDialog(
                           backgroundColor: AppTheme.surfaceColor,
-                          title: const Text('Keluar?', style: TextStyle(color: Colors.white)),
-                          content: const Text('Anda yakin ingin keluar dari akun?', style: TextStyle(color: Colors.white70)),
+                          title: Text('Keluar?', style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)),
+                          content: Text('Anda yakin ingin keluar dari akun?', style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
                           actions: [
-                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
+                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Batal')),
                             ElevatedButton(
                               onPressed: () => Navigator.pop(ctx, true),
                               style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-                              child: const Text('Keluar', style: TextStyle(color: Colors.white)),
+                              child: Text('Keluar', style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)),
                             ),
                           ],
                         ),
@@ -390,6 +499,66 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: (v) => settings.setThemeMode(v ? ThemeMode.dark : ThemeMode.light),
                 ),
 
+                // Warna Aksen
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 36, height: 36,
+                            decoration: BoxDecoration(
+                              color: settings.accentColor.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(Icons.palette_rounded, color: settings.accentColor, size: 20),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text("Warna Aksen", style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.w500, fontSize: 14)),
+                                const Text("Pilih warna tema aplikasi", style: TextStyle(color: AppTheme.secondaryTextColor, fontSize: 12)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 14),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: AppTheme.accentPresets.map((preset) {
+                          final color = preset['color'] as Color;
+                          final isSelected = settings.accentColor.value == color.value;
+                          return GestureDetector(
+                            onTap: () => settings.setAccentColor(color),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              width: 42, height: 42,
+                              decoration: BoxDecoration(
+                                color: color,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: isSelected ? Colors.white : Colors.transparent,
+                                  width: 2.5,
+                                ),
+                                boxShadow: isSelected ? [BoxShadow(color: color.withOpacity(0.6), blurRadius: 10, spreadRadius: 2)] : [],
+                              ),
+                              child: isSelected
+                                  ? Icon(Icons.check_rounded, color: Theme.of(context).textTheme.bodyLarge?.color, size: 20)
+                                  : null,
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
+                ),
+
                 const Divider(color: Colors.white10, height: 1),
 
                 // --- Server Status ---
@@ -400,6 +569,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                 // --- Pemutaran ---
                 _sectionHeader("Pemutaran"),
+                _buildNavTile(
+                  icon: Icons.language_rounded,
+                  iconColor: Colors.amberAccent,
+                  title: "Wilayah Pendengaran",
+                  subtitle: settings.region == 'ID' ? 'Indonesia' : (settings.region == 'US' ? 'Global (US)' : settings.region),
+                  onTap: () => _showRegionSheet(settings),
+                ),
+                _buildNavTile(
+                  icon: Icons.dashboard_customize_rounded,
+                  iconColor: Colors.deepPurpleAccent,
+                  title: "Gaya Beranda",
+                  subtitle: settings.dashboardStyle == 0 ? "Default" : (settings.dashboardStyle == 1 ? "Kompak" : "Grid"),
+                  onTap: () => _showDashboardStyleSheet(settings),
+                ),
+                _buildNavTile(
+                  icon: Icons.palette_rounded,
+                  iconColor: Colors.pinkAccent,
+                  title: "Tema Player",
+                  subtitle: settings.playerTheme == 0 ? "Gradien Transparan" : (settings.playerTheme == 1 ? "Solid (Warna Latar)" : "Vibrant (Full Warna Aksen)"),
+                  onTap: () => _showPlayerThemeSheet(settings),
+                ),
                 _buildSwitchTile(
                   icon: Icons.graphic_eq_rounded,
                   iconColor: AppTheme.primaryColor,
@@ -477,35 +667,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: _isCheckingUpdate
-                        ? const Padding(
+                        ? Padding(
                             padding: EdgeInsets.all(8.0),
                             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.greenAccent),
                           )
-                        : const Icon(Icons.system_update_rounded, color: Colors.greenAccent, size: 20),
+                        : Icon(Icons.system_update_rounded, color: Colors.greenAccent, size: 20),
                   ),
-                  title: const Text(
+                  title: Text(
                     "Periksa Pembaruan",
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 14),
+                    style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.w500, fontSize: 14),
                   ),
-                  subtitle: _isCheckingUpdate && _updateProgress > 0
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 4),
-                            LinearProgressIndicator(
-                              value: _updateProgress,
-                              backgroundColor: Colors.white12,
-                              color: Colors.greenAccent,
-                            ),
-                            const SizedBox(height: 4),
-                            Text("Mengunduh: ${(_updateProgress * 100).toStringAsFixed(0)}%", style: const TextStyle(color: AppTheme.secondaryTextColor, fontSize: 11)),
-                          ],
-                        )
-                      : const Text(
-                          "Periksa dan unduh pembaruan otomatis",
-                          style: TextStyle(color: AppTheme.secondaryTextColor, fontSize: 12),
-                        ),
-                  trailing: const Icon(Icons.chevron_right, color: AppTheme.secondaryTextColor, size: 20),
+                  subtitle: _isCheckingUpdate 
+                      ? Text('Memeriksa versi...', style: TextStyle(color: AppTheme.primaryColor))
+                      : Text('Periksa dan unduh pembaruan otomatis', style: TextStyle(color: AppTheme.secondaryTextColor, fontSize: 12)),
+                  trailing: Icon(Icons.chevron_right, color: AppTheme.secondaryTextColor, size: 20),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                 ),
                 _buildNavTile(
@@ -516,7 +691,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onTap: () {},
                 ),
 
-                const SizedBox(height: 100),
+                SizedBox(height: 100),
               ],
             ),
           ),
@@ -549,13 +724,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: AppTheme.primaryColor.withOpacity(0.15),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.cloud_done_rounded, color: AppTheme.primaryColor, size: 22),
+                child: Icon(Icons.cloud_done_rounded, color: AppTheme.primaryColor, size: 22),
               ),
-              title: const Text(
+              title: Text(
                 "PlusSound API Server",
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.bold, fontSize: 14),
               ),
-              subtitle: const Text(
+              subtitle: Text(
                 "api-yusril-whenyh",
                 style: TextStyle(color: AppTheme.secondaryTextColor, fontSize: 11),
               ),
@@ -570,12 +745,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: OutlinedButton.icon(
                   onPressed: _isTestingConnection ? null : _testServerConnection,
                   icon: _isTestingConnection
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryColor),
                         )
-                      : const Icon(Icons.compare_arrows_rounded, size: 18),
+                      : Icon(Icons.compare_arrows_rounded, size: 18),
                   label: Text(
                     _isTestingConnection ? "Memeriksa..." : "Uji Koneksi Server",
                     style: const TextStyle(fontWeight: FontWeight.bold),
@@ -596,7 +771,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildConnectionBadge() {
     if (_isTestingConnection) {
-      return const SizedBox(
+      return SizedBox(
         width: 20,
         height: 20,
         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.grey),
@@ -609,7 +784,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           color: Colors.white12,
           borderRadius: BorderRadius.circular(20),
         ),
-        child: const Text("Belum diperiksa", style: TextStyle(color: Colors.white54, fontSize: 10)),
+        child: Text("Belum diperiksa", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 10)),
       );
     }
     return Container(
@@ -628,7 +803,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             size: 12,
             color: _connectionStatus! ? AppTheme.primaryColor : Colors.redAccent,
           ),
-          const SizedBox(width: 4),
+          SizedBox(width: 4),
           Text(
             _connectionStatus! ? "Online" : "Offline",
             style: TextStyle(
@@ -677,9 +852,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           child: Icon(icon, color: iconColor, size: 20),
         ),
-        title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 14)),
+        title: Text(title, style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.w500, fontSize: 14)),
         subtitle: Text(subtitle, style: const TextStyle(color: AppTheme.secondaryTextColor, fontSize: 12)),
-        trailing: const Icon(Icons.chevron_right, color: AppTheme.secondaryTextColor),
+        trailing: Icon(Icons.chevron_right, color: AppTheme.secondaryTextColor),
         onTap: onTap,
       ),
     );
@@ -709,7 +884,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         title: Text(
           title,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 14),
+          style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.w500, fontSize: 14),
         ),
         subtitle: Text(
           subtitle,
@@ -744,13 +919,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         title: Text(
           title,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 14),
+          style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.w500, fontSize: 14),
         ),
         subtitle: Text(
           subtitle,
           style: const TextStyle(color: AppTheme.secondaryTextColor, fontSize: 12),
         ),
-        trailing: const Icon(Icons.chevron_right, color: AppTheme.secondaryTextColor, size: 20),
+        trailing: Icon(Icons.chevron_right, color: AppTheme.secondaryTextColor, size: 20),
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       ),
     );
@@ -769,7 +944,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Container(
               width: 36,
               height: 4,
@@ -778,12 +953,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            const SizedBox(height: 16),
-            const Text(
+            SizedBox(height: 16),
+            Text(
               "Kualitas Audio",
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+              style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.bold, fontSize: 16),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             ...["Otomatis", "Rendah (24 kbps)", "Normal (96 kbps)", "Tinggi (160 kbps)", "Sangat Tinggi (320 kbps)"]
                 .map((q) {
               final isPremiumOption = q.contains("Tinggi") || q.contains("Sangat");
@@ -794,14 +969,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     Text(q, style: TextStyle(color: isLocked ? Colors.white54 : Colors.white)),
                     if (isPremiumOption) ...[
-                      const SizedBox(width: 8),
-                      const Icon(Icons.star_rounded, color: Color(0xFFFFD700), size: 14),
+                      SizedBox(width: 8),
+                      Icon(Icons.star_rounded, color: Color(0xFFFFD700), size: 14),
                     ]
                   ],
                 ),
                 trailing: settings.audioQuality == q
-                    ? const Icon(Icons.check_circle_rounded, color: AppTheme.primaryColor)
-                    : (isLocked ? const Icon(Icons.lock_outline, color: Colors.white54, size: 20) : null),
+                    ? Icon(Icons.check_circle_rounded, color: AppTheme.primaryColor)
+                    : (isLocked ? Icon(Icons.lock_outline, color: Theme.of(context).textTheme.bodyMedium?.color, size: 20) : null),
                 onTap: () {
                   if (isLocked) {
                     Navigator.pop(ctx);
@@ -813,7 +988,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               );
             }),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
           ],
         ),
       ),
@@ -831,7 +1006,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Container(
               width: 36,
               height: 4,
@@ -840,16 +1015,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            const SizedBox(height: 16),
-            const Text(
+            SizedBox(height: 16),
+            Text(
               "Lokasi Penyimpanan",
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+              style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.bold, fontSize: 16),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             ListTile(
-              title: const Text("Penyimpanan Internal", style: TextStyle(color: Colors.white)),
+              title: Text("Penyimpanan Internal", style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)),
               trailing: settings.storageLocation == 'internal'
-                  ? const Icon(Icons.check_circle_rounded, color: AppTheme.primaryColor)
+                  ? Icon(Icons.check_circle_rounded, color: AppTheme.primaryColor)
                   : null,
               onTap: () {
                 settings.setStorageLocation('internal');
@@ -857,19 +1032,153 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
             ListTile(
-              title: const Text("SD Card", style: TextStyle(color: Colors.white)),
+              title: Text("SD Card", style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)),
               trailing: settings.storageLocation == 'sdcard'
-                  ? const Icon(Icons.check_circle_rounded, color: AppTheme.primaryColor)
+                  ? Icon(Icons.check_circle_rounded, color: AppTheme.primaryColor)
                   : null,
               onTap: () {
                 settings.setStorageLocation('sdcard');
                 Navigator.pop(ctx);
               },
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
           ],
         ),
       ),
+    );
+  }
+
+  void _showRegionSheet(SettingsProvider settings) {
+    final Map<String, String> regions = {
+      'ID': 'Indonesia',
+      'US': 'Global (Amerika Serikat)',
+      'JP': 'Jepang',
+      'KR': 'Korea Selatan',
+      'GB': 'Inggris (UK)',
+    };
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF282828),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text('Wilayah Pendengaran', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              ),
+              ...regions.entries.map((e) => ListTile(
+                title: Text(e.value, style: const TextStyle(color: Colors.white)),
+                trailing: settings.region == e.key ? const Icon(Icons.check, color: AppTheme.primaryColor) : null,
+                onTap: () {
+                  settings.setRegion(e.key);
+                  Navigator.pop(ctx);
+                  _showSnackBar("Wilayah diubah ke ${e.value}. Muat ulang beranda untuk melihat perubahan.");
+                },
+              )),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showDashboardStyleSheet(SettingsProvider settings) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF282828),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text('Gaya Beranda', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              ),
+              ListTile(
+                title: const Text('Default', style: TextStyle(color: Colors.white)),
+                trailing: settings.dashboardStyle == 0 ? const Icon(Icons.check, color: AppTheme.primaryColor) : null,
+                onTap: () {
+                  settings.setDashboardStyle(0);
+                  Navigator.pop(ctx);
+                },
+              ),
+              ListTile(
+                title: const Text('Kompak', style: TextStyle(color: Colors.white)),
+                trailing: settings.dashboardStyle == 1 ? const Icon(Icons.check, color: AppTheme.primaryColor) : null,
+                onTap: () {
+                  settings.setDashboardStyle(1);
+                  Navigator.pop(ctx);
+                },
+              ),
+              ListTile(
+                title: const Text('Grid', style: TextStyle(color: Colors.white)),
+                trailing: settings.dashboardStyle == 2 ? const Icon(Icons.check, color: AppTheme.primaryColor) : null,
+                onTap: () {
+                  settings.setDashboardStyle(2);
+                  Navigator.pop(ctx);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showPlayerThemeSheet(SettingsProvider settings) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF282828),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text('Tema Player', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              ),
+              ListTile(
+                title: const Text('Gradien Transparan (Default)', style: TextStyle(color: Colors.white)),
+                trailing: settings.playerTheme == 0 ? const Icon(Icons.check, color: AppTheme.primaryColor) : null,
+                onTap: () {
+                  settings.setPlayerTheme(0);
+                  Navigator.pop(ctx);
+                },
+              ),
+              ListTile(
+                title: const Text('Solid (Warna Latar)', style: TextStyle(color: Colors.white)),
+                trailing: settings.playerTheme == 1 ? const Icon(Icons.check, color: AppTheme.primaryColor) : null,
+                onTap: () {
+                  settings.setPlayerTheme(1);
+                  Navigator.pop(ctx);
+                },
+              ),
+              ListTile(
+                title: const Text('Vibrant (Full Warna Aksen)', style: TextStyle(color: Colors.white)),
+                trailing: settings.playerTheme == 2 ? const Icon(Icons.check, color: AppTheme.primaryColor) : null,
+                onTap: () {
+                  settings.setPlayerTheme(2);
+                  Navigator.pop(ctx);
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -879,11 +1188,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
+        title: Row(
           children: [
             Icon(Icons.music_note_rounded, color: AppTheme.primaryColor),
             SizedBox(width: 8),
-            Text("PlusSound", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            Text("PlusSound", style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.bold)),
           ],
         ),
         content: Column(
@@ -894,22 +1203,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
               future: PackageInfo.fromPlatform(),
               builder: (context, snapshot) {
                 final version = snapshot.hasData ? snapshot.data!.version : "1.0.1";
-                return Text("Versi $version", style: const TextStyle(color: Colors.white70));
+                return Text("Versi $version", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color));
               }
             ),
-            const SizedBox(height: 8),
-            const Text(
+            SizedBox(height: 8),
+            Text(
               "Aplikasi streaming musik berbasis Flutter dengan integrasi YouTube Music dan Vercel API.",
               style: TextStyle(color: AppTheme.secondaryTextColor, fontSize: 13, height: 1.5),
             ),
-            const SizedBox(height: 12),
-            const Text("Developer: @yusril", style: TextStyle(color: AppTheme.primaryColor, fontSize: 13)),
+            SizedBox(height: 12),
+            Text("Developer: @yusril", style: TextStyle(color: AppTheme.primaryColor, fontSize: 13)),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text("Tutup", style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold)),
+            child: Text("Tutup", style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold)),
           ),
         ],
       ),

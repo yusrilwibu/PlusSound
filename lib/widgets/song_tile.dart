@@ -42,14 +42,16 @@ class SongTile extends StatelessWidget {
               imageUrl: song.albumArtUrl,
               width: 50,
               height: 50,
+              memCacheWidth: 100,
+              memCacheHeight: 100,
               fit: BoxFit.cover,
               placeholder: (_, __) => Container(
                 color: AppTheme.surfaceColor,
-                child: const Icon(Icons.music_note, color: Colors.white30),
+                child: Icon(Icons.music_note, color: Colors.white30),
               ),
               errorWidget: (_, __, ___) => Container(
                 color: AppTheme.surfaceColor,
-                child: const Icon(Icons.music_note, color: Colors.white30),
+                child: Icon(Icons.music_note, color: Colors.white30),
               ),
             ),
           ),
@@ -61,7 +63,7 @@ class SongTile extends StatelessWidget {
                 color: Colors.black54,
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: const Icon(Icons.equalizer, color: AppTheme.primaryColor, size: 22),
+              child: Icon(Icons.equalizer, color: AppTheme.primaryColor, size: 22),
             ),
         ],
       ),
@@ -82,7 +84,7 @@ class SongTile extends StatelessWidget {
       subtitle: Row(
         children: [
           if (downloadProvider.isDownloaded(song.id))
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(right: 4),
               child: Icon(Icons.download_done, size: 12, color: AppTheme.primaryColor),
             ),
@@ -138,7 +140,7 @@ class _MoreMenu extends StatelessWidget {
     }
 
     return IconButton(
-      icon: const Icon(Icons.more_vert, color: AppTheme.secondaryTextColor),
+      icon: Icon(Icons.more_vert, color: AppTheme.secondaryTextColor),
       onPressed: () => _showOptions(context, isDownloaded),
     );
   }
@@ -183,9 +185,9 @@ class _OptionSheet extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           // Song header
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -197,16 +199,18 @@ class _OptionSheet extends StatelessWidget {
                     imageUrl: song.albumArtUrl,
                     width: 48,
                     height: 48,
+                    memCacheWidth: 96,
+                    memCacheHeight: 96,
                     fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => Container(color: AppTheme.surfaceColor, child: const Icon(Icons.music_note)),
+                    errorWidget: (_, __, ___) => Container(color: AppTheme.surfaceColor, child: Icon(Icons.music_note)),
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(song.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Text(song.title, style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
                       Text(song.artist, style: const TextStyle(color: AppTheme.secondaryTextColor, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
                     ],
                   ),
@@ -217,7 +221,7 @@ class _OptionSheet extends StatelessWidget {
           const Divider(color: Colors.white12),
           ListTile(
             leading: Icon(inLibrary ? Icons.favorite : Icons.favorite_border, color: inLibrary ? AppTheme.primaryColor : Colors.white),
-            title: Text(inLibrary ? 'Hapus dari Library' : 'Simpan ke Library', style: const TextStyle(color: Colors.white)),
+            title: Text(inLibrary ? 'Hapus dari Library' : 'Simpan ke Library', style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)),
             onTap: () {
               Navigator.pop(context);
               libraryProvider.toggle(song);
@@ -233,7 +237,7 @@ class _OptionSheet extends StatelessWidget {
               isDownloaded ? Icons.download_done : Icons.download_outlined,
               color: isDownloaded ? AppTheme.primaryColor : Colors.white,
             ),
-            title: Text(isDownloaded ? 'Sudah Diunduh' : 'Unduh untuk Offline', style: const TextStyle(color: Colors.white)),
+            title: Text(isDownloaded ? 'Sudah Diunduh' : 'Unduh untuk Offline', style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)),
             onTap: isDownloaded
                 ? null
                 : () {
@@ -246,7 +250,7 @@ class _OptionSheet extends StatelessWidget {
                     ));
                   },
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
         ],
       ),
     );

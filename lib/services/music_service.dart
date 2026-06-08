@@ -1,4 +1,5 @@
-import 'dart:async';
+// dart:async no longer needed after switch to sequential approach
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
@@ -15,6 +16,9 @@ class MusicService {
   
   // In-memory cache for lyrics
   static final Map<String, String> _lyricsCache = {};
+
+  // Track the last successful client to avoid rate limits and delays
+  static int _lastSuccessfulClientIndex = 0;
 
   /// Parse a search result item from ytmusicapi into SongModel
   SongModel? _parseSongItem(dynamic item) {
@@ -116,33 +120,55 @@ class MusicService {
 
     try {
       await Future.wait(selectedCategories.map((category) async {
+        List<SongModel> songs = [];
+        // 1. Coba Vercel API untuk pencarian kategori (sangat cepat & tidak di-rate-limit)
         try {
-          final results = await _yt.search.search(category['query']!);
-          final songs = results
-              .take(15) // Ambil 15 lagu per kategori agar penuh
-              .map((v) => SongModel(
-                    id: v.id.value,
-                    title: v.title,
-                    artist: v.author,
-                    albumArtUrl: v.thumbnails.highResUrl,
-                    duration: v.duration ?? Duration.zero,
-                    streamUrl: '',
-                  ))
-              .toList();
-          
-          songs.shuffle(); // Acak urutan lagu di dalam kategori
-          if (songs.isNotEmpty) {
-            homeData[category['title']!] = songs;
+          final response = await http
+              .get(Uri.parse(
+                  '${ApiConfig.musicApiBaseUrl}/api/search?query=${Uri.encodeComponent(category['query']!)}'))
+              .timeout(const Duration(seconds: 8));
+          if (response.statusCode == 200) {
+            final body = jsonDecode(response.body);
+            if (body['status'] == 'success' && body['data'] != null) {
+              final List<dynamic> dataList = body['data'];
+              songs = dataList
+                  .map((item) => _parseSongItem(item))
+                  .whereType<SongModel>()
+                  .toList();
+            }
           }
         } catch (e) {
-          debugPrint('fetchHomeData category error: $e');
+          debugPrint('fetchHomeData Vercel error for ${category['title']}: $e');
+        }
+
+        // 2. Fallback ke YoutubeExplode jika Vercel gagal/kosong
+        if (songs.isEmpty) {
+          try {
+            final results = await _yt.search.search(category['query']!);
+            songs = results
+                .take(15) // Ambil 15 lagu per kategori agar penuh
+                .map((v) => SongModel(
+                      id: v.id.value,
+                      title: v.title,
+                      artist: v.author,
+                      albumArtUrl: v.thumbnails.highResUrl,
+                      duration: v.duration ?? Duration.zero,
+                      streamUrl: '',
+                    ))
+                .toList();
+          } catch (e) {
+            debugPrint('fetchHomeData category error: $e');
+          }
+        }
+
+        if (songs.isNotEmpty) {
+          songs.shuffle(); // Acak urutan lagu di dalam kategori
+          homeData[category['title']!] = songs;
         }
       }));
     } catch (e) {
       debugPrint('fetchHomeData error: $e');
     }
-
-    return homeData;
 
     return homeData;
   }
@@ -161,89 +187,103 @@ class MusicService {
     final audioQuality = prefs.getString('audio_quality') ?? 'Otomatis';
     final isLowQuality = audioQuality.contains('Rendah') || audioQuality.contains('Normal');
 
-    final Completer<Map<String, dynamic>> completer = Completer();
-    int failedCount = 0;
-    
-    // Racing Vercel API dan YoutubeExplode
-    final clientConfigs = <String, List<YoutubeApiClient>>{
-      'ios': [YoutubeApiClient.ios],
-      'mweb': [YoutubeApiClient.mweb],
-      'androidSdkless': [YoutubeApiClient.androidSdkless],
-    };
-    final totalTasks = 1 + clientConfigs.length;
 
-    void checkFailure() {
-      failedCount++;
-      if (failedCount == totalTasks && !completer.isCompleted) {
-        debugPrint('[Stream] ❌ ALL methods failed for $videoId');
-        completer.complete({'url': '', 'headers': <String, String>{}});
+
+    // Urutan client PERSIS seperti yang berhasil: mediaConnect → ios → tv → safari → mweb → androidVr → androidSdkless
+    final clientsToTry = [
+      ('mediaConnect',   [YoutubeApiClient.mediaConnect]),
+      ('ios',            [YoutubeApiClient.ios]),
+      ('tv',             [YoutubeApiClient.tv]),
+      ('safari',         [YoutubeApiClient.safari]),
+      ('mweb',           [YoutubeApiClient.mweb]),
+      ('androidVr',      [YoutubeApiClient.androidVr]),
+      ('androidSdkless', [YoutubeApiClient.androidSdkless]),
+      ('android',        [YoutubeApiClient.android]),
+      ('androidMusic',   [YoutubeApiClient.androidMusic]),
+    ];
+
+    // Task 1: Coba Vercel API dulu (tercepat)
+    try {
+      final response = await http
+          .get(Uri.parse('${ApiConfig.musicApiBaseUrl}/api/stream?video_id=$videoId'))
+          .timeout(const Duration(seconds: 8));
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        if (body['status'] == 'success' && body['data'] != null) {
+          final url = (body['data']['url'] as String?)?.trim() ?? '';
+          if (url.isNotEmpty) {
+            debugPrint('[Stream] ✅ Vercel API success!');
+            final result = {'url': url, 'headers': <String, String>{}};
+            _streamCache[videoId] = result;
+            return result;
+          }
+        }
       }
+    } catch (e) {
+      debugPrint('[Stream] Vercel API gagal: $e');
     }
 
-    // Task 1: Vercel API
-    Future(() async {
+    // Task 2: Coba YoutubeExplode client yang terakhir berhasil terlebih dahulu (instan)
+    final listLen = clientsToTry.length;
+    if (_lastSuccessfulClientIndex >= 0 && _lastSuccessfulClientIndex < listLen) {
+      final (name, clients) = clientsToTry[_lastSuccessfulClientIndex];
       try {
-        final response = await http
-            .get(Uri.parse('${ApiConfig.musicApiBaseUrl}/api/stream?video_id=$videoId'))
-            .timeout(const Duration(seconds: 12));
-        if (response.statusCode == 200) {
-          final body = jsonDecode(response.body);
-          if (body['status'] == 'success' && body['data'] != null && body['data']['url'] != null) {
-            final url = body['data']['url'] as String;
-            if (url.isNotEmpty && !completer.isCompleted) {
-              debugPrint('[Stream] ✅ Vercel API success!');
-              final result = {'url': url, 'headers': <String, String>{}};
-              _streamCache[videoId] = result;
-              completer.complete(result);
-              return;
-            }
+        debugPrint('[Stream] Mencoba client terakhir berhasil: $name...');
+        final manifest = await _yt.videos.streamsClient
+            .getManifest(videoId, ytClients: clients)
+            .timeout(const Duration(seconds: 10));
+        final audioStreams = manifest.audioOnly;
+        if (audioStreams.isNotEmpty) {
+          final audioStream = isLowQuality
+              ? audioStreams.sortByBitrate().first
+              : audioStreams.withHighestBitrate();
+          final url = audioStream.url.toString();
+          if (url.isNotEmpty) {
+            debugPrint('[Stream] ✅ Client "$name" (terakhir berhasil) sukses!');
+            final result = {'url': url, 'headers': <String, String>{}};
+            _streamCache[videoId] = result;
+            return result;
           }
         }
       } catch (e) {
-        debugPrint('[Stream] Vercel API error');
+        debugPrint('[Stream] ❌ Client terakhir berhasil "$name" gagal: $e. Mencoba lainnya...');
       }
-      checkFailure();
-    });
-
-    // Task 2, 3, 4: YTExplode Clients
-    for (final entry in clientConfigs.entries) {
-      Future(() async {
-        try {
-          final manifest = await _yt.videos.streamsClient
-              .getManifest(videoId, ytClients: entry.value)
-              .timeout(const Duration(seconds: 12));
-          final audioStreams = manifest.audioOnly;
-          if (audioStreams.isNotEmpty) {
-            var audioStream = audioStreams.withHighestBitrate(); // Default (Otomatis/Tinggi)
-            if (isLowQuality) {
-              audioStream = audioStreams.sortByBitrate().first; // Paling rendah
-            }
-            
-            final url = audioStream.url.toString();
-            if (url.isNotEmpty && !completer.isCompleted) {
-              final clientPayload = entry.value.first.payload;
-              final userAgent = (clientPayload['context'] as Map?)?['client']?['userAgent'] as String? ?? '';
-              debugPrint('[Stream] ✅ YoutubeExplode "${entry.key}" success!');
-              final result = {
-                'url': url,
-                'headers': userAgent.isNotEmpty ? {'User-Agent': userAgent} : <String, String>{},
-              };
-              _streamCache[videoId] = result;
-              completer.complete(result);
-              return;
-            }
-          }
-        } catch (e) {
-          debugPrint('[Stream] YoutubeExplode "${entry.key}" error');
-        }
-        checkFailure();
-      });
     }
 
-    return completer.future;
+    // Task 3: Jika client terakhir gagal, coba semua client secara berurutan
+    for (int i = 0; i < listLen; i++) {
+      if (i == _lastSuccessfulClientIndex) continue;
+      final (name, clients) = clientsToTry[i];
+      try {
+        debugPrint('[Stream] Mencoba client berurutan: $name...');
+        final manifest = await _yt.videos.streamsClient
+            .getManifest(videoId, ytClients: clients)
+            .timeout(const Duration(seconds: 10));
+        final audioStreams = manifest.audioOnly;
+        if (audioStreams.isNotEmpty) {
+          final audioStream = isLowQuality
+              ? audioStreams.sortByBitrate().first
+              : audioStreams.withHighestBitrate();
+          final url = audioStream.url.toString();
+          if (url.isNotEmpty) {
+            debugPrint('[Stream] ✅ Client "$name" berhasil!');
+            _lastSuccessfulClientIndex = i; // simpan index yang sukses
+            final result = {'url': url, 'headers': <String, String>{}};
+            _streamCache[videoId] = result;
+            return result;
+          }
+        }
+      } catch (e) {
+        debugPrint('[Stream] ❌ Client "$name" gagal: $e');
+      }
+    }
+
+    debugPrint('[Stream] ❌ Semua metode gagal untuk $videoId');
+    return {'url': '', 'headers': <String, String>{}};
   }
 
-  Future<String> getLyrics(String title, String artist, {Duration? duration}) async {
+
+  Future<String> getLyrics(String title, String artist, {Duration? duration, String? videoId}) async {
     final cacheKey = '${title}_$artist';
     if (_lyricsCache.containsKey(cacheKey)) {
       debugPrint('[Lyrics] ⚡ Mengambil lirik dari cache untuk $cacheKey');
@@ -251,6 +291,29 @@ class MusicService {
     }
 
     try {
+      // 1. Coba fetch dari Vercel API (YouTube Music Native Lyrics) - paling cepat & akurat
+      if (videoId != null && videoId.isNotEmpty) {
+        try {
+          final response = await http
+              .get(Uri.parse('${ApiConfig.musicApiBaseUrl}/api/lyrics?video_id=$videoId'))
+              .timeout(const Duration(seconds: 4));
+          if (response.statusCode == 200) {
+            final body = jsonDecode(response.body);
+            if (body['status'] == 'success' && body['data'] != null) {
+              final lyricsText = body['data']['lyrics'] as String? ?? '';
+              if (lyricsText.isNotEmpty) {
+                debugPrint('[Lyrics] ✅ Vercel API success!');
+                _lyricsCache[cacheKey] = lyricsText;
+                return lyricsText;
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('[Lyrics] Vercel API error: $e');
+        }
+      }
+
+      // 2. Jika gagal atau tidak ada videoId, coba lrclib.net (synced lyrics)
       String cleanTitle = title
           .replaceAll(RegExp(r'\(.*?official.*?\)', caseSensitive: false), '')
           .replaceAll(RegExp(r'\(.*?video.*?\)', caseSensitive: false), '')

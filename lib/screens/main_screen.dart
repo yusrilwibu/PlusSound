@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 import 'home_screen.dart';
 import 'search_screen.dart';
 import 'library_screen.dart';
+import 'playlist_screen.dart';
+import 'download_screen.dart';
+import 'settings_screen.dart';
 import '../widgets/mini_player.dart';
 import '../providers/audio_provider.dart';
 
@@ -20,6 +23,9 @@ class _MainScreenState extends State<MainScreen> {
     const HomeScreen(),
     const SearchScreen(),
     const LibraryScreen(),
+    const PlaylistScreen(),
+    const DownloadScreen(),
+    const SettingsScreen(),
   ];
 
   @override
@@ -58,9 +64,24 @@ class _MainScreenState extends State<MainScreen> {
             label: 'Search',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.library_music_outlined),
-            activeIcon: Icon(Icons.library_music),
+            icon: Icon(Icons.favorite_border_rounded),
+            activeIcon: Icon(Icons.favorite_rounded),
             label: 'Library',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.queue_music_outlined),
+            activeIcon: Icon(Icons.queue_music_rounded),
+            label: 'Playlist',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.download_outlined),
+            activeIcon: Icon(Icons.download_rounded),
+            label: 'Unduhan',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings_outlined),
+            activeIcon: Icon(Icons.settings_rounded),
+            label: 'Pengaturan',
           ),
         ],
       ),

@@ -61,14 +61,14 @@ class _SearchScreenState extends State<SearchScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(left: 16.0, top: 24.0, bottom: 16.0),
               child: Text(
                 'Cari',
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
                 ),
               ),
             ),
@@ -88,7 +88,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 decoration: InputDecoration(
                   hintText: "Apa yang ingin kamu dengarkan?",
                   hintStyle: const TextStyle(color: Colors.black54, fontWeight: FontWeight.w500),
-                  prefixIcon: const Icon(Icons.search, color: Colors.black87, size: 28),
+                  prefixIcon: Icon(Icons.search, color: Colors.black87, size: 28),
                   filled: true,
                   fillColor: Colors.white,
                   contentPadding: const EdgeInsets.symmetric(vertical: 14),
@@ -99,7 +99,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             if (_isSearching)
               const Expanded(child: Center(child: CircularProgressIndicator(color: AppTheme.primaryColor)))
             else if (_searchResults.isNotEmpty)
@@ -120,12 +120,12 @@ class _SearchScreenState extends State<SearchScreen> {
                           memCacheHeight: 112,
                           fit: BoxFit.cover,
                           placeholder: (context, url) => Container(color: AppTheme.surfaceColor),
-                          errorWidget: (context, url, error) => const Icon(Icons.music_note),
+                          errorWidget: (context, url, error) => Icon(Icons.music_note),
                         ),
                       ),
                       title: Text(
                         song.title,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.bold),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -204,11 +204,11 @@ class _SearchScreenState extends State<SearchScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Padding(
+                      Padding(
                         padding: EdgeInsets.only(top: 8.0, bottom: 16.0),
                         child: Text(
                           "Jelajahi semua",
-                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                       ),
                       Expanded(
@@ -250,8 +250,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                       padding: const EdgeInsets.all(12.0),
                                       child: Text(
                                         genre['name'],
-                                        style: const TextStyle(
-                                          color: Colors.white,
+                                        style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color,
                                           fontSize: 16,
                                           fontWeight: FontWeight.bold,
                                         ),
@@ -265,7 +264,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                         child: Icon(
                                           Icons.music_note,
                                           size: 70,
-                                          color: Colors.white.withOpacity(0.3),
+                                          color: Theme.of(context).textTheme.bodyLarge?.color.withOpacity(0.3),
                                         ),
                                       ),
                                     ),

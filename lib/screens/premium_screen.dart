@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../providers/auth_provider.dart' as app_auth;
 import '../theme.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -32,39 +33,29 @@ class _PremiumScreenState extends State<PremiumScreen> with SingleTickerProvider
 
   Future<void> _subscribe(String planType) async {
     setState(() { _isProcessing = true; _selectedPlan = planType; });
-    
-    final authProv = Provider.of<app_auth.AuthProvider>(context, listen: false);
-    if (!authProv.isLoggedIn) {
-      setState(() => _isProcessing = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Silakan login dulu untuk berlangganan Premium.'), backgroundColor: Colors.orange),
-      );
-      return;
-    }
-    await authProv.activatePremium(planType);
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    // Redirect ke WhatsApp untuk konfirmasi pembayaran
+    final label = planType == 'yearly' ? 'Tahunan (Rp 79.000)' : '3 Bulan (Rp 10.000)';
+    final message = Uri.encodeComponent(
+      'Halo kak, saya mau berlangganan PlusSound Premium paket $label. '
+      'Tolong konfirmasi cara pembayarannya. Terima kasih!',
+    );
+    final waUrl = Uri.parse('https://wa.me/6282297706541?text=$message');
+
     setState(() => _isProcessing = false);
 
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.surfaceColor,
-        title: const Text('🎉 Selamat Datang di Premium!', style: TextStyle(color: Colors.white, fontSize: 18)),
-        content: Text(
-          planType == 'yearly'
-              ? 'Langganan Tahunan Anda sudah aktif. Nikmati semua fitur Premium selama 1 tahun!'
-              : 'Langganan 3 Bulan Anda sudah aktif. Nikmati semua fitur Premium!',
-          style: const TextStyle(color: Colors.white70),
+    if (await canLaunchUrl(waUrl)) {
+      await launchUrl(waUrl, mode: LaunchMode.externalApplication);
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('WhatsApp tidak tersedia. Hubungi: 082297706541'),
+          backgroundColor: Colors.orange,
         ),
-        actions: [
-          ElevatedButton(
-            onPressed: () { Navigator.pop(ctx); Navigator.pop(context); },
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryColor),
-            child: const Text('Asyik!', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
+      );
+    }
   }
 
   @override
@@ -178,7 +169,45 @@ class _PremiumScreenState extends State<PremiumScreen> with SingleTickerProvider
                           ),
                         ),
                       const SizedBox(height: 30),
-                      Text('Pembayaran aman & terenkripsi', style: GoogleFonts.inter(color: Colors.white38, fontSize: 11)),
+                      // WhatsApp info — bisa diklik
+                      GestureDetector(
+                        onTap: () async {
+                          final message = Uri.encodeComponent(
+                            'Halo kak, saya mau berlangganan PlusSound Premium. '
+                            'Tolong konfirmasi cara pembayarannya. Terima kasih!',
+                          );
+                          final waUrl = Uri.parse('https://wa.me/6282297706541?text=$message');
+                          if (await canLaunchUrl(waUrl)) {
+                            await launchUrl(waUrl, mode: LaunchMode.externalApplication);
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF25D366).withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFF25D366).withOpacity(0.5)),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.chat_rounded, color: Color(0xFF25D366), size: 20),
+                              const SizedBox(width: 10),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Hubungi via WhatsApp', style: GoogleFonts.inter(color: const Color(0xFF25D366), fontSize: 11, fontWeight: FontWeight.w500)),
+                                  Text('082297706541', style: GoogleFonts.inter(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                              const SizedBox(width: 8),
+                              const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFF25D366), size: 14),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('Ketuk untuk langsung ke WhatsApp', style: GoogleFonts.inter(color: Colors.white38, fontSize: 11)),
                       const SizedBox(height: 40),
                     ],
                   ),

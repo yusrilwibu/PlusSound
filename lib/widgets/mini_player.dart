@@ -16,7 +16,7 @@ class MiniPlayer extends StatelessWidget {
       return Container(
         height: 60,
         color: AppTheme.surfaceColor,
-        child: const Center(
+        child: Center(
           child: CircularProgressIndicator(color: AppTheme.primaryColor),
         ),
       );
@@ -51,12 +51,14 @@ class MiniPlayer extends StatelessWidget {
                       imageUrl: song.albumArtUrl,
                       width: 44,
                       height: 44,
+                      memCacheWidth: 88,
+                      memCacheHeight: 88,
                       fit: BoxFit.cover,
                       placeholder: (context, url) => Container(color: Colors.grey[800]),
-                      errorWidget: (context, url, error) => const Icon(Icons.music_note),
+                      errorWidget: (context, url, error) => Icon(Icons.music_note),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -64,7 +66,7 @@ class MiniPlayer extends StatelessWidget {
                       children: [
                         Text(
                           song.title,
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.bold),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -78,7 +80,7 @@ class MiniPlayer extends StatelessWidget {
                     ),
                   ),
                   if (audioProvider.isLoadingSong)
-                     const Padding(
+                     Padding(
                        padding: EdgeInsets.all(8.0),
                        child: SizedBox(
                          width: 24, height: 24, 
@@ -89,7 +91,7 @@ class MiniPlayer extends StatelessWidget {
                     IconButton(
                       icon: Icon(
                         audioProvider.isPlaying ? Icons.pause : Icons.play_arrow,
-                        color: Colors.white,
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
                       ),
                       onPressed: () {
                         if (audioProvider.isPlaying) {
@@ -107,7 +109,7 @@ class MiniPlayer extends StatelessWidget {
                   ? audioProvider.currentPosition.inMilliseconds / audioProvider.totalDuration.inMilliseconds
                   : 0.0,
               backgroundColor: Colors.white24,
-              color: Colors.white,
+              color: Theme.of(context).textTheme.bodyLarge?.color,
               minHeight: 2,
             ),
           ],

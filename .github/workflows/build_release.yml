@@ -69,15 +69,14 @@ jobs:
           body: |
             ## 🎵 PlusSound v${{ steps.version.outputs.VERSION }}
 
-            ### ✨ Yang Baru di Update Ini:
-            - ⚡ Pemutaran lagu super cepat (1-3 detik)
-            - 🖼️ Cover lagu Full HD anti-buram
-            - 👤 Login & Daftar Akun (Firebase)
-            - 🔐 Login dengan Google
-            - 👑 Fitur Premium (3 Bulan / 1 Tahun)
-            - 🔒 Kualitas Audio 320kbps khusus Premium
-            - 🏠 Rekomendasi lagu di Home selalu berbeda tiap buka app
-            - ⚙️ Pengaturan semua berfungsi (Auto Play, Kualitas Audio)
+            ### ✨ Yang Baru di Update Ini (v1.0.9 Mega Update):
+            - 🎵 **Lirik Ala Spotify**: Lirik sinkron bisa di-scroll & tab tampilan penuh.
+            - 📁 **Fitur Playlist**: Buat, simpan, & kelola lagu di playlist lokal.
+            - 🎨 **Gaya Beranda**: Pilih dari 3 gaya (Default, Kompak, Grid).
+            - 🖌️ **Tema Player**: Tampilan Gradien, Solid, atau Vibrant (Warna Aksen).
+            - 🚀 **Lebih Ringan & Cepat**: Perbaikan lag saat putar lagu (auto-play fixed).
+            - 🐛 **Bug Fixes**: Warna aksen bisa diganti, install APK dari app, tombol Next/Prev stabil.
+            - 📱 **Mode Terang**: Perbaikan teks mode terang di seluruh UI.
 
             ### 📱 Pilih APK Sesuai HP:
             | File | Untuk HP |

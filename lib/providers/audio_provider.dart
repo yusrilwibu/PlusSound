@@ -136,7 +136,7 @@ class AudioProvider with ChangeNotifier {
   }
 
   Future<void> playSong(SongModel song,
-      {List<SongModel>? queue, int? queueIndex}) async {
+      {List<SongModel>? queue, int? queueIndex, bool autoPlay = true}) async {
     if (queue != null) {
       _queue = List.from(queue);
       _queueIndex = queueIndex ?? 0;
@@ -189,6 +189,10 @@ class AudioProvider with ChangeNotifier {
           headers: streamHeaders.isNotEmpty ? streamHeaders : null,
         );
 
+        if (!autoPlay) {
+          audioHandler.pause();
+        }
+
         _isLoadingSong = false;
         notifyListeners();
 
@@ -199,6 +203,7 @@ class AudioProvider with ChangeNotifier {
           song.title,
           song.artist,
           duration: song.duration != Duration.zero ? song.duration : null,
+          videoId: song.id,
         ).then((lyrics) {
           _currentLyrics = lyrics;
           try {
@@ -238,6 +243,9 @@ class AudioProvider with ChangeNotifier {
         if (_repeatMode == RepeatMode.all) {
           next = 0;
         } else {
+          // Restart queue but pause
+          _queueIndex = 0;
+          await playSong(_queue[0], autoPlay: false);
           return;
         }
       }
@@ -255,7 +263,13 @@ class AudioProvider with ChangeNotifier {
     }
     int prev = _queueIndex - 1;
     if (prev < 0) {
-      prev = _repeatMode == RepeatMode.all ? _queue.length - 1 : 0;
+      if (_repeatMode == RepeatMode.all) {
+        prev = _queue.length - 1;
+      } else {
+        prev = 0; // Tetap di lagu pertama
+        await playSong(_queue[prev]);
+        return;
+      }
     }
     _queueIndex = prev;
     await playSong(_queue[prev]);

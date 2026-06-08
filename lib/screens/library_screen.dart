@@ -33,7 +33,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Koleksi Kamu'),
+        title: Text('Koleksi Kamu'),
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: AppTheme.primaryColor,
@@ -59,7 +59,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     return Consumer<LibraryProvider>(
       builder: (context, provider, child) {
         if (!provider.loaded) {
-          return const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor));
+          return Center(child: CircularProgressIndicator(color: AppTheme.primaryColor));
         }
         final songs = provider.songs;
         if (songs.isEmpty) {
@@ -98,7 +98,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(icon, size: 64, color: AppTheme.secondaryTextColor.withOpacity(0.5)),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           Text(
             message,
             style: const TextStyle(color: AppTheme.secondaryTextColor, fontSize: 16),
@@ -126,7 +126,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
             color: AppTheme.surfaceColor,
             width: 50,
             height: 50,
-            child: const Icon(Icons.music_note, color: Colors.white54),
+            child: Icon(Icons.music_note, color: Theme.of(context).textTheme.bodyMedium?.color),
           ),
         ),
       ),

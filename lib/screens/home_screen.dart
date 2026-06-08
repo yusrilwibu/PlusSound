@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../theme.dart';
 import '../models/song_model.dart';
 import '../providers/audio_provider.dart';
+import '../providers/settings_provider.dart';
 import '../services/music_service.dart' as music_svc;
 import 'settings_screen.dart';
 
@@ -119,6 +120,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final style = settingsProvider.dashboardStyle;
+
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -147,19 +151,19 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
+                        Text(
                           "PlusSound",
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: Theme.of(context).textTheme.bodyLarge?.color,
                             letterSpacing: -0.5,
                           ),
                         ),
                         Row(
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.settings_outlined, color: Colors.white),
+                              icon: Icon(Icons.settings_outlined, color: Theme.of(context).textTheme.bodyLarge?.color),
                               onPressed: () async {
                                 await Navigator.push(
                                   context,
@@ -191,18 +195,18 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.error_outline_rounded, size: 64, color: Colors.redAccent),
-                            const SizedBox(height: 16),
+                            Icon(Icons.error_outline_rounded, size: 64, color: Colors.redAccent),
+                            SizedBox(height: 16),
                             Text(
                               _errorMessage!,
                               textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.white70, fontSize: 16),
+                              style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 16),
                             ),
-                            const SizedBox(height: 20),
+                            SizedBox(height: 20),
                             ElevatedButton.icon(
                               onPressed: _loadHomeData,
-                              icon: const Icon(Icons.refresh),
-                              label: const Text("Coba Lagi"),
+                              icon: Icon(Icons.refresh),
+                              label: Text("Coba Lagi"),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppTheme.primaryColor,
                                 foregroundColor: Colors.white,
@@ -218,7 +222,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Center(
                       child: Text(
                         "Tidak ada data lagu tersedia.",
-                        style: TextStyle(color: Colors.white70),
+                        style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
                       ),
                     ),
                   )
@@ -251,23 +255,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                   style: const TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.white,
+                                    color: Theme.of(context).textTheme.bodyLarge?.color,
                                   ),
                                 ),
                               ),
-                              SizedBox(
-                                height: 185,
-                                child: ListView.builder(
-                                  scrollDirection: Axis.horizontal,
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12.0),
-                                  physics: const BouncingScrollPhysics(),
-                                  itemCount: songs.length,
-                                  itemBuilder: (context, songIndex) {
-                                    return _buildSongCard(songs[songIndex]);
-                                  },
-                                ),
-                              ),
+                              _buildCategoryContent(key, songs, style),
                             ],
                           ),
                         );
@@ -288,6 +280,43 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+
+  Widget _buildCategoryContent(String key, List<SongModel> songs, int style) {
+    if (style == 0) { // Default
+      return SizedBox(
+        height: 185,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12.0),
+          physics: const BouncingScrollPhysics(),
+          itemCount: songs.length,
+          itemBuilder: (context, songIndex) {
+            return _buildSongCard(songs[songIndex]);
+          },
+        ),
+      );
+    } else if (style == 1) { // Kompak
+      return Column(
+        children: songs.take(3).map((song) => _buildCompactSongCard(song)).toList(),
+      );
+    } else { // Grid
+      return GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 0.85,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+        ),
+        itemCount: songs.length > 4 ? 4 : songs.length, // Batasi 4 per kategori jika grid
+        itemBuilder: (context, songIndex) {
+          return _buildGridSongCard(songs[songIndex]);
+        },
+      );
+    }
+  }
 
   Widget _buildFeaturedBanner(SongModel song) {
     final audioProvider = Provider.of<AudioProvider>(context, listen: false);
@@ -326,20 +355,20 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: AppTheme.primaryColor,
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: const Text("TREN SEKARANG", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                child: Text("TREN SEKARANG", style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 10, fontWeight: FontWeight.bold)),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Text(
                 song.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 24, fontWeight: FontWeight.bold),
               ),
               Text(
                 song.artist,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Colors.white70, fontSize: 16),
+                style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 16),
               ),
             ],
           ),
@@ -368,10 +397,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 imageUrl: song.albumArtUrl,
                 width: 130,
                 height: 120,
+                memCacheWidth: 260,
+                memCacheHeight: 240,
                 fit: BoxFit.cover,
                 placeholder: (context, url) => Container(
                   color: AppTheme.surfaceColor,
-                  child: const Center(
+                  child: Center(
                     child: SizedBox(
                       width: 20,
                       height: 20,
@@ -381,23 +412,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 errorWidget: (context, url, error) => Container(
                   color: AppTheme.surfaceColor,
-                  child: const Icon(Icons.music_note, color: Colors.white30, size: 40),
+                  child: Icon(Icons.music_note, color: Colors.white30, size: 40),
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             // Title
             Text(
               song.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color,
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
               ),
             ),
-            const SizedBox(height: 2),
+            SizedBox(height: 2),
             // Artist
             Text(
               song.artist,
@@ -406,6 +436,104 @@ class _HomeScreenState extends State<HomeScreen> {
               style: const TextStyle(
                 color: AppTheme.secondaryTextColor,
                 fontSize: 11,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactSongCard(SongModel song) {
+    final audioProvider = Provider.of<AudioProvider>(context, listen: false);
+
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: CachedNetworkImage(
+          imageUrl: song.albumArtUrl,
+          width: 48,
+          height: 48,
+          memCacheWidth: 100,
+          memCacheHeight: 100,
+          fit: BoxFit.cover,
+          errorWidget: (context, url, error) => Container(
+            width: 48,
+            height: 48,
+            color: AppTheme.surfaceColor,
+            child: const Icon(Icons.music_note, color: Colors.white30),
+          ),
+        ),
+      ),
+      title: Text(
+        song.title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.bold, fontSize: 14),
+      ),
+      subtitle: Text(
+        song.artist,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(color: AppTheme.secondaryTextColor, fontSize: 12),
+      ),
+      trailing: IconButton(
+        icon: const Icon(Icons.play_arrow, color: AppTheme.primaryColor),
+        onPressed: () => audioProvider.playSong(song),
+      ),
+      onTap: () => audioProvider.playSong(song),
+    );
+  }
+
+  Widget _buildGridSongCard(SongModel song) {
+    final audioProvider = Provider.of<AudioProvider>(context, listen: false);
+
+    return GestureDetector(
+      onTap: () => audioProvider.playSong(song),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceColor,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                child: CachedNetworkImage(
+                  imageUrl: song.albumArtUrl,
+                  width: double.infinity,
+                  memCacheWidth: 300,
+                  memCacheHeight: 300,
+                  fit: BoxFit.cover,
+                  errorWidget: (context, url, error) => Container(
+                    color: AppTheme.backgroundColor,
+                    child: const Icon(Icons.music_note, color: Colors.white30, size: 40),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    song.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: AppTheme.secondaryTextColor, fontSize: 11),
+                  ),
+                ],
               ),
             ),
           ],

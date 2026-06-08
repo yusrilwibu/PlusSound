@@ -11,6 +11,7 @@ import 'providers/audio_provider.dart';
 import 'providers/library_provider.dart';
 import 'providers/download_provider.dart';
 import 'providers/settings_provider.dart';
+import 'providers/playlist_provider.dart';
 import 'providers/auth_provider.dart' as app_auth;
 
 late MyAudioHandler audioHandler;
@@ -52,6 +53,7 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => AudioProvider(audioHandler)),
         ChangeNotifierProvider(create: (_) => LibraryProvider()),
         ChangeNotifierProvider(create: (_) => DownloadProvider()),
+        ChangeNotifierProvider(create: (_) => PlaylistProvider()),
       ],
       child: const MyApp(),
     ),
@@ -67,8 +69,8 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'PlusSound',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
+      theme: AppTheme.buildLightTheme(accent: settings.accentColor),
+      darkTheme: AppTheme.buildDarkTheme(accent: settings.accentColor),
       themeMode: settings.themeMode,
       home: const MainScreen(),
     );

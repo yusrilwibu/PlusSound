@@ -51,8 +51,6 @@ class MiniPlayer extends StatelessWidget {
                       imageUrl: song.albumArtUrl,
                       width: 44,
                       height: 44,
-                      memCacheWidth: 88,
-                      memCacheHeight: 88,
                       fit: BoxFit.cover,
                       placeholder: (context, url) => Container(color: Colors.grey[800]),
                       errorWidget: (context, url, error) => const Icon(Icons.music_note),

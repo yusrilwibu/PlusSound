@@ -368,8 +368,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 imageUrl: song.albumArtUrl,
                 width: 130,
                 height: 120,
-                memCacheWidth: 200,
-                memCacheHeight: 200,
                 fit: BoxFit.cover,
                 placeholder: (context, url) => Container(
                   color: AppTheme.surfaceColor,

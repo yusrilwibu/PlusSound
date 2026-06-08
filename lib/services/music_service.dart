@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import '../models/song_model.dart';
 import 'package:http/http.dart' as http;
@@ -94,76 +96,53 @@ class MusicService {
   Future<Map<String, List<SongModel>>> fetchHomeData() async {
     final Map<String, List<SongModel>> homeData = {};
 
-    // Coba endpoint /api/home dari Vercel untuk sekali request
+    final List<Map<String, String>> categories = [
+      {'title': 'Hits Populer Indonesia', 'query': 'lagu pop indonesia terbaru hits viral'},
+      {'title': 'Viral di TikTok', 'query': 'lagu viral tiktok terbaru fyp'},
+      {'title': 'Akustik Santai', 'query': 'lagu akustik cafe santai cover'},
+      {'title': 'Top Global Billboard', 'query': 'top hits global billboard populer'},
+      {'title': 'Lagu Galau Terkini', 'query': 'lagu galau sedih indonesia terbaru'},
+      {'title': 'K-Pop Hits', 'query': 'kpop hits terbaru mv'},
+      {'title': 'Dangdut Koplo Asik', 'query': 'dangdut koplo terbaru full bass'},
+      {'title': 'Nostalgia Lawas', 'query': 'lagu lawas kenangan indonesia terbaik'},
+      {'title': 'EDM & Party Mix', 'query': 'edm party mix populer'},
+      {'title': 'Indie Lokal', 'query': 'lagu indie indonesia terbaik'},
+      {'title': 'Jawa Ambyar', 'query': 'lagu jawa ambyar terbaru'},
+      {'title': 'R&B Chill', 'query': 'r&b chill hits'},
+    ];
+
+    categories.shuffle();
+    final selectedCategories = categories.take(4).toList();
+
     try {
-      final response = await http
-          .get(Uri.parse('${ApiConfig.musicApiBaseUrl}/api/home'))
-          .timeout(const Duration(seconds: 12));
-
-      if (response.statusCode == 200) {
-        final body = jsonDecode(response.body);
-        if (body['status'] == 'success' && body['data'] != null) {
-          final Map<String, dynamic> dataMap = body['data'];
-          dataMap.forEach((key, valueList) {
-            final List<dynamic> list = valueList;
-            final songs = list
-                .map((item) => _parseSongItem(item))
-                .whereType<SongModel>()
-                .toList();
-            if (songs.isNotEmpty) {
-              homeData[key] = songs;
-            }
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint('fetchHomeData API error: $e');
-    }
-
-    // Jika gagal, fallback ke YoutubeExplode secara paralel dan acak
-    if (homeData.isEmpty) {
-      final List<Map<String, String>> categories = [
-        {'title': 'Hits Indonesia', 'query': 'lagu pop indonesia terbaru hits'},
-        {'title': 'Viral TikTok', 'query': 'lagu viral tiktok terbaru'},
-        {'title': 'Akustik Santai', 'query': 'lagu akustik cafe santai'},
-        {'title': 'Top Global', 'query': 'top hits global billboard'},
-        {'title': 'Lagu Galau', 'query': 'lagu galau indonesia sedih'},
-        {'title': 'K-Pop Hits', 'query': 'kpop hits terbaru'},
-        {'title': 'Dangdut Koplo', 'query': 'dangdut koplo terbaru'},
-        {'title': 'Lagu Lawas Nostalgia', 'query': 'lagu lawas kenangan indonesia'},
-        {'title': 'EDM & Party', 'query': 'edm party mix terbaru'},
-        {'title': 'Indie Lokal', 'query': 'lagu indie indonesia terbaik'},
-      ];
-
-      categories.shuffle();
-      final selectedCategories = categories.take(4).toList();
-
-      try {
-        await Future.wait(selectedCategories.map((category) async {
-          try {
-            final results = await _yt.search.search(category['query']!);
-            final songs = results
-                .take(15)
-                .map((v) => SongModel(
-                      id: v.id.value,
-                      title: v.title,
-                      artist: v.author,
-                      albumArtUrl: v.thumbnails.highResUrl,
-                      duration: v.duration ?? Duration.zero,
-                      streamUrl: '',
-                    ))
-                .toList();
-            if (songs.isNotEmpty) {
-              homeData[category['title']!] = songs;
-            }
-          } catch (e) {
-            debugPrint('fetchHomeData fallback category error: $e');
+      await Future.wait(selectedCategories.map((category) async {
+        try {
+          final results = await _yt.search.search(category['query']!);
+          final songs = results
+              .take(15) // Ambil 15 lagu per kategori agar penuh
+              .map((v) => SongModel(
+                    id: v.id.value,
+                    title: v.title,
+                    artist: v.author,
+                    albumArtUrl: v.thumbnails.highResUrl,
+                    duration: v.duration ?? Duration.zero,
+                    streamUrl: '',
+                  ))
+              .toList();
+          
+          songs.shuffle(); // Acak urutan lagu di dalam kategori
+          if (songs.isNotEmpty) {
+            homeData[category['title']!] = songs;
           }
-        }));
-      } catch (e) {
-        debugPrint('fetchHomeData fallback error: $e');
-      }
+        } catch (e) {
+          debugPrint('fetchHomeData category error: $e');
+        }
+      }));
+    } catch (e) {
+      debugPrint('fetchHomeData error: $e');
     }
+
+    return homeData;
 
     return homeData;
   }
@@ -177,80 +156,91 @@ class MusicService {
       return _streamCache[videoId]!;
     }
 
-    // ======= STEP 1: Try Vercel API (server-side extraction) =======
-    try {
-      debugPrint('[Stream] Step 1: Trying Vercel API for $videoId...');
-      final response = await http
-          .get(Uri.parse(
-              '${ApiConfig.musicApiBaseUrl}/api/stream?video_id=$videoId'))
-          .timeout(const Duration(seconds: 25));
-      debugPrint('[Stream] Vercel response: ${response.statusCode}');
-      if (response.statusCode == 200) {
-        final body = jsonDecode(response.body);
-        if (body['status'] == 'success' &&
-            body['data'] != null &&
-            body['data']['url'] != null &&
-            (body['data']['url'] as String).isNotEmpty) {
-          debugPrint('[Stream] ✅ Vercel API success! Client: ${body['data']['client'] ?? 'unknown'}');
-          final result = {'url': body['data']['url'] as String, 'headers': <String, String>{}};
-          _streamCache[videoId] = result; // Simpan ke cache
-          return result;
-        }
-      }
-      debugPrint('[Stream] Vercel API failed or no URL in response');
-    } catch (e) {
-      debugPrint('[Stream] Vercel API error: $e');
-    }
+    // Ambil preferensi kualitas audio
+    final prefs = await SharedPreferences.getInstance();
+    final audioQuality = prefs.getString('audio_quality') ?? 'Otomatis';
+    final isLowQuality = audioQuality.contains('Rendah') || audioQuality.contains('Normal');
 
-    // ======= STEP 2: Try YoutubeExplode on-device with ALL clients =======
-    // Each client has different anti-bot characteristics.
-    // We try them one by one to maximize our chances.
+    final Completer<Map<String, dynamic>> completer = Completer();
+    int failedCount = 0;
+    
+    // Racing Vercel API dan YoutubeExplode
     final clientConfigs = <String, List<YoutubeApiClient>>{
-      'mediaConnect': [YoutubeApiClient.mediaConnect],
       'ios': [YoutubeApiClient.ios],
-      'tv': [YoutubeApiClient.tv],
-      'safari': [YoutubeApiClient.safari],
       'mweb': [YoutubeApiClient.mweb],
-      'androidVr': [YoutubeApiClient.androidVr],
       'androidSdkless': [YoutubeApiClient.androidSdkless],
     };
+    final totalTasks = 1 + clientConfigs.length;
 
-    for (final entry in clientConfigs.entries) {
-      try {
-        debugPrint('[Stream] Step 2: Trying YoutubeExplode client "${entry.key}" for $videoId...');
-        final manifest = await _yt.videos.streamsClient
-            .getManifest(videoId, ytClients: entry.value)
-            .timeout(const Duration(seconds: 15));
-        
-        final audioStreams = manifest.audioOnly;
-        if (audioStreams.isNotEmpty) {
-          final audioStream = audioStreams.withHighestBitrate();
-          final url = audioStream.url.toString();
-          if (url.isNotEmpty) {
-            // Get the matching user-agent from the client config
-            final clientPayload = entry.value.first.payload;
-            final userAgent = (clientPayload['context'] as Map?)?['client']?['userAgent'] as String? ?? '';
-            
-            debugPrint('[Stream] ✅ YoutubeExplode "${entry.key}" success! URL length: ${url.length}');
-            final result = {
-              'url': url,
-              'headers': userAgent.isNotEmpty 
-                  ? {'User-Agent': userAgent} 
-                  : <String, String>{},
-            };
-            _streamCache[videoId] = result; // Simpan ke cache
-            return result;
-          }
-        }
-        debugPrint('[Stream] YoutubeExplode "${entry.key}" returned no audio streams');
-      } catch (e) {
-        debugPrint('[Stream] YoutubeExplode "${entry.key}" failed: $e');
-        // Continue to next client
+    void checkFailure() {
+      failedCount++;
+      if (failedCount == totalTasks && !completer.isCompleted) {
+        debugPrint('[Stream] ❌ ALL methods failed for $videoId');
+        completer.complete({'url': '', 'headers': <String, String>{}});
       }
     }
 
-    debugPrint('[Stream] ❌ ALL methods failed for $videoId');
-    return {'url': '', 'headers': <String, String>{}};
+    // Task 1: Vercel API
+    Future(() async {
+      try {
+        final response = await http
+            .get(Uri.parse('${ApiConfig.musicApiBaseUrl}/api/stream?video_id=$videoId'))
+            .timeout(const Duration(seconds: 12));
+        if (response.statusCode == 200) {
+          final body = jsonDecode(response.body);
+          if (body['status'] == 'success' && body['data'] != null && body['data']['url'] != null) {
+            final url = body['data']['url'] as String;
+            if (url.isNotEmpty && !completer.isCompleted) {
+              debugPrint('[Stream] ✅ Vercel API success!');
+              final result = {'url': url, 'headers': <String, String>{}};
+              _streamCache[videoId] = result;
+              completer.complete(result);
+              return;
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('[Stream] Vercel API error');
+      }
+      checkFailure();
+    });
+
+    // Task 2, 3, 4: YTExplode Clients
+    for (final entry in clientConfigs.entries) {
+      Future(() async {
+        try {
+          final manifest = await _yt.videos.streamsClient
+              .getManifest(videoId, ytClients: entry.value)
+              .timeout(const Duration(seconds: 12));
+          final audioStreams = manifest.audioOnly;
+          if (audioStreams.isNotEmpty) {
+            var audioStream = audioStreams.withHighestBitrate(); // Default (Otomatis/Tinggi)
+            if (isLowQuality) {
+              audioStream = audioStreams.sortByBitrate().first; // Paling rendah
+            }
+            
+            final url = audioStream.url.toString();
+            if (url.isNotEmpty && !completer.isCompleted) {
+              final clientPayload = entry.value.first.payload;
+              final userAgent = (clientPayload['context'] as Map?)?['client']?['userAgent'] as String? ?? '';
+              debugPrint('[Stream] ✅ YoutubeExplode "${entry.key}" success!');
+              final result = {
+                'url': url,
+                'headers': userAgent.isNotEmpty ? {'User-Agent': userAgent} : <String, String>{},
+              };
+              _streamCache[videoId] = result;
+              completer.complete(result);
+              return;
+            }
+          }
+        } catch (e) {
+          debugPrint('[Stream] YoutubeExplode "${entry.key}" error');
+        }
+        checkFailure();
+      });
+    }
+
+    return completer.future;
   }
 
   Future<String> getLyrics(String title, String artist, {Duration? duration}) async {

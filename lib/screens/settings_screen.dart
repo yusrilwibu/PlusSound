@@ -9,6 +9,9 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../api_config.dart';
 import '../theme.dart';
 import '../providers/settings_provider.dart';
+import '../providers/auth_provider.dart' as app_auth;
+import 'login_screen.dart';
+import 'premium_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -197,6 +200,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final settings = Provider.of<SettingsProvider>(context);
+    final auth = Provider.of<app_auth.AuthProvider>(context);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -225,27 +229,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const SizedBox(height: 16),
-                      // Avatar
+                      // Avatar (pakai foto dari Firebase jika login)
                       GestureDetector(
-                        onTap: () => _pickImage(settings),
+                        onTap: () {
+                          if (auth.isLoggedIn) {
+                            _pickImage(settings);
+                          } else {
+                            Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+                          }
+                        },
                         child: Container(
                           width: 76,
                           height: 76,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            gradient: settings.profileImagePath == null
+                            gradient: (auth.photoUrl == null && settings.profileImagePath == null)
                                 ? const LinearGradient(
                                     colors: [AppTheme.primaryColor, Color(0xFF191414)],
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
                                   )
                                 : null,
-                            image: settings.profileImagePath != null
+                            image: (settings.profileImagePath != null)
                                 ? DecorationImage(
                                     image: FileImage(File(settings.profileImagePath!)),
                                     fit: BoxFit.cover,
                                   )
-                                : null,
+                                : (auth.photoUrl != null)
+                                    ? DecorationImage(
+                                        image: NetworkImage(auth.photoUrl!),
+                                        fit: BoxFit.cover,
+                                      )
+                                    : null,
                             boxShadow: [
                               BoxShadow(
                                 color: AppTheme.primaryColor.withOpacity(0.4),
@@ -254,42 +269,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                             ],
                           ),
-                          child: settings.profileImagePath == null
-                              ? const Center(
+                          child: (auth.photoUrl == null && settings.profileImagePath == null)
+                              ? Center(
                                   child: Text(
-                                    "Y",
-                                    style: TextStyle(
-                                      fontSize: 32,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
+                                    auth.isLoggedIn ? (auth.displayName.isNotEmpty ? auth.displayName[0].toUpperCase() : 'U') : 'G',
+                                    style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
                                   ),
                                 )
                               : null,
                         ),
                       ),
                       const SizedBox(height: 12),
-                      const Text(
-                        "Yusril",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
+                      Text(
+                        auth.isLoggedIn ? auth.displayName : 'Tamu',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                       ),
+                      const SizedBox(height: 4),
+                      if (auth.isLoggedIn && auth.email != null)
+                        Text(auth.email!, style: const TextStyle(fontSize: 11, color: Colors.white54)),
                       const SizedBox(height: 4),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                         decoration: BoxDecoration(
-                          color: AppTheme.primaryColor.withOpacity(0.2),
+                          color: auth.isPremium
+                              ? const Color(0xFFFFD700).withOpacity(0.2)
+                              : AppTheme.primaryColor.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: AppTheme.primaryColor.withOpacity(0.5)),
+                          border: Border.all(
+                            color: auth.isPremium
+                                ? const Color(0xFFFFD700).withOpacity(0.6)
+                                : AppTheme.primaryColor.withOpacity(0.5),
+                          ),
                         ),
-                        child: const Text(
-                          "✦  PlusSound Premium",
+                        child: Text(
+                          auth.isPremium ? '⭐ PlusSound Premium' : '♪ PlusSound Free',
                           style: TextStyle(
                             fontSize: 12,
-                            color: AppTheme.primaryColor,
+                            color: auth.isPremium ? const Color(0xFFFFD700) : AppTheme.primaryColor,
                             fontWeight: FontWeight.w600,
                             letterSpacing: 0.5,
                           ),
@@ -309,6 +325,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+
+                // --- Akun ---
+                _sectionHeader("Akun"),
+                if (!auth.isLoggedIn)
+                  _buildActionTile(
+                    icon: Icons.login_rounded,
+                    iconColor: AppTheme.primaryColor,
+                    title: 'Masuk ke Akun',
+                    subtitle: 'Simpan favorit & playlist di cloud',
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen())),
+                  ),
+                if (auth.isLoggedIn)
+                  _buildActionTile(
+                    icon: Icons.logout_rounded,
+                    iconColor: Colors.redAccent,
+                    title: 'Keluar dari Akun',
+                    subtitle: auth.email ?? '',
+                    onTap: () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          backgroundColor: AppTheme.surfaceColor,
+                          title: const Text('Keluar?', style: TextStyle(color: Colors.white)),
+                          content: const Text('Anda yakin ingin keluar dari akun?', style: TextStyle(color: Colors.white70)),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
+                            ElevatedButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                              child: const Text('Keluar', style: TextStyle(color: Colors.white)),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirm == true) auth.logout();
+                    },
+                  ),
+                if (!auth.isPremium)
+                  _buildActionTile(
+                    icon: Icons.star_rounded,
+                    iconColor: const Color(0xFFFFD700),
+                    title: 'Upgrade ke Premium',
+                    subtitle: 'Mulai dari Rp 10.000/bulan',
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PremiumScreen())),
+                  ),
+                if (auth.isPremium)
+                  _buildActionTile(
+                    icon: Icons.verified_rounded,
+                    iconColor: const Color(0xFFFFD700),
+                    title: 'Akun Premium Aktif ⭐',
+                    subtitle: 'Semua fitur Premium sudah terbuka',
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PremiumScreen())),
+                  ),
 
                 // --- Tampilan ---
                 _sectionHeader("Tampilan"),
@@ -588,6 +657,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _buildActionTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+        leading: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: iconColor.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: iconColor, size: 20),
+        ),
+        title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 14)),
+        subtitle: Text(subtitle, style: const TextStyle(color: AppTheme.secondaryTextColor, fontSize: 12)),
+        trailing: const Icon(Icons.chevron_right, color: AppTheme.secondaryTextColor),
+        onTap: onTap,
+      ),
+    );
+  }
+
   Widget _buildSwitchTile({
     required IconData icon,
     required Color iconColor,
@@ -660,6 +757,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showQualitySheet(SettingsProvider settings) {
+    final auth = Provider.of<app_auth.AuthProvider>(context, listen: false);
+
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF282828),
@@ -686,16 +785,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 8),
             ...["Otomatis", "Rendah (24 kbps)", "Normal (96 kbps)", "Tinggi (160 kbps)", "Sangat Tinggi (320 kbps)"]
-                .map((q) => ListTile(
-                      title: Text(q, style: const TextStyle(color: Colors.white)),
-                      trailing: settings.audioQuality == q
-                          ? const Icon(Icons.check_circle_rounded, color: AppTheme.primaryColor)
-                          : null,
-                      onTap: () {
-                        settings.setAudioQuality(q);
-                        Navigator.pop(ctx);
-                      },
-                    )),
+                .map((q) {
+              final isPremiumOption = q.contains("Tinggi") || q.contains("Sangat");
+              final isLocked = isPremiumOption && !auth.isPremium;
+
+              return ListTile(
+                title: Row(
+                  children: [
+                    Text(q, style: TextStyle(color: isLocked ? Colors.white54 : Colors.white)),
+                    if (isPremiumOption) ...[
+                      const SizedBox(width: 8),
+                      const Icon(Icons.star_rounded, color: Color(0xFFFFD700), size: 14),
+                    ]
+                  ],
+                ),
+                trailing: settings.audioQuality == q
+                    ? const Icon(Icons.check_circle_rounded, color: AppTheme.primaryColor)
+                    : (isLocked ? const Icon(Icons.lock_outline, color: Colors.white54, size: 20) : null),
+                onTap: () {
+                  if (isLocked) {
+                    Navigator.pop(ctx);
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const PremiumScreen()));
+                    return;
+                  }
+                  settings.setAudioQuality(q);
+                  Navigator.pop(ctx);
+                },
+              );
+            }),
             const SizedBox(height: 8),
           ],
         ),

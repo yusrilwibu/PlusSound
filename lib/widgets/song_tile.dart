@@ -42,8 +42,6 @@ class SongTile extends StatelessWidget {
               imageUrl: song.albumArtUrl,
               width: 50,
               height: 50,
-              memCacheWidth: 100,
-              memCacheHeight: 100,
               fit: BoxFit.cover,
               placeholder: (_, __) => Container(
                 color: AppTheme.surfaceColor,

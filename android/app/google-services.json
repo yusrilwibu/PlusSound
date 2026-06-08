@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "655378790188",
+    "project_id": "plussound-4e676",
+    "storage_bucket": "plussound-4e676.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:655378790188:android:eaa91af8aae896d32e5e89",
+        "android_client_info": {
+          "package_name": "com.yusril.plussound.plus_sound"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBuBxPJZWsevzj4zJQH1lpLlqPYkc4oQfQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

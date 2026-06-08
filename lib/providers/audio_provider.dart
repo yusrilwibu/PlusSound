@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/song_model.dart';
 import '../services/audio_handler.dart';
 import '../services/music_service.dart' hide debugPrint;
@@ -93,13 +94,20 @@ class AudioProvider with ChangeNotifier {
   Duration get currentPosition => _currentPosition;
   Duration get totalDuration => _totalDuration;
 
-  void _onSongCompleted() {
+  void _onSongCompleted() async {
     if (_repeatMode == RepeatMode.one) {
       audioHandler.seek(Duration.zero);
       audioHandler.play();
-    } else {
-      skipToNext();
+      return;
     }
+
+    // Cek pengaturan Auto Play
+    final prefs = await SharedPreferences.getInstance();
+    final autoPlay = prefs.getBool('auto_play') ?? true;
+
+    if (!autoPlay) return; // Berhenti jika Auto Play dimatikan
+
+    skipToNext();
   }
 
   void toggleRepeat() {

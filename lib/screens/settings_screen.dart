@@ -106,7 +106,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).textTheme.bodyLarge?.color.withOpacity(0.05),
+                        color: (Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white).withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(releaseNotes, style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 12)),
@@ -370,7 +370,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ? Center(
                                   child: Text(
                                     auth.isLoggedIn ? (auth.displayName.isNotEmpty ? auth.displayName[0].toUpperCase() : 'U') : 'G',
-                                    style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color),
+                                    style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color),
                                   ),
                                 )
                               : null,
@@ -395,7 +395,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       SizedBox(height: 4),
                       if (auth.isLoggedIn && auth.email != null)
-                        Text(auth.email!, style: const TextStyle(fontSize: 11, color: Theme.of(context).textTheme.bodyMedium?.color)),
+                        Text(auth.email!, style: TextStyle(fontSize: 11, color: Theme.of(context).textTheme.bodyMedium?.color)),
                       SizedBox(height: 4),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -521,7 +521,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text("Warna Aksen", style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.w500, fontSize: 14)),
-                                const Text("Pilih warna tema aplikasi", style: TextStyle(color: AppTheme.secondaryTextColor, fontSize: 12)),
+                                Text("Pilih warna tema aplikasi", style: const TextStyle(color: AppTheme.secondaryTextColor, fontSize: 12)),
                               ],
                             ),
                           ),
@@ -1045,6 +1045,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  void _showEditNameDialog(dynamic auth) {
+    final controller = TextEditingController(text: auth.displayName);
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF282828),
+          title: const Text('Edit Nama Profil', style: TextStyle(color: Colors.white)),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: 'Masukkan nama baru',
+              hintStyle: const TextStyle(color: Colors.white54),
+              filled: true,
+              fillColor: Colors.white12,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Batal', style: TextStyle(color: Colors.white54)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final newName = controller.text.trim();
+                if (newName.isNotEmpty) {
+                  auth.updateDisplayName(newName);
+                }
+                Navigator.pop(ctx);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryColor),
+              child: const Text('Simpan', style: TextStyle(color: Colors.black)),
+            ),
+          ],
+        );
+      },
     );
   }
 

@@ -218,7 +218,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   )
                 else if (_homeData.isEmpty)
-                  const SliverFillRemaining(
+                  SliverFillRemaining(
                     child: Center(
                       child: Text(
                         "Tidak ada data lagu tersedia.",
@@ -252,7 +252,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     left: 16.0, top: 20.0, bottom: 12.0),
                                 child: Text(
                                   _getCategoryTitle(key),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
                                     color: Theme.of(context).textTheme.bodyLarge?.color,

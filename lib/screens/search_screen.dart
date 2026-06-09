@@ -264,7 +264,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                         child: Icon(
                                           Icons.music_note,
                                           size: 70,
-                                          color: Theme.of(context).textTheme.bodyLarge?.color.withOpacity(0.3),
+                                          color: (Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white).withValues(alpha: 0.3),
                                         ),
                                       ),
                                     ),
